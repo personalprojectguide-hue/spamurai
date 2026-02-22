@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spamurai — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0a0a0a; --surface:#111; --surface2:#1a1a1a; --red:#e63329; --white:#f5f2ee; --muted:#666; --border:#222; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--white); font-family:'DM Sans',sans-serif; min-height:100vh; }
+  nav {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:20px 48px; background:rgba(10,10,10,0.9);
+    backdrop-filter:blur(12px); border-bottom:1px solid var(--border);
+    position:fixed; top:0; left:0; right:0; z-index:100;
+  }
+  .logo { font-family:'Syne',sans-serif; font-weight:800; font-size:20px; text-decoration:none; color:var(--white); }
+  .logo span { color:var(--red); }
+  .admin-badge { background:rgba(230,51,41,0.15); border:1px solid rgba(230,51,41,0.3); color:var(--red); font-size:11px; padding:4px 10px; border-radius:100px; letter-spacing:0.8px; }
+  .btn-link { color:var(--muted); font-size:13px; text-decoration:none; }
+  .btn-link:hover { color:var(--white); }
+  .page { padding:100px 48px 48px; max-width:1100px; margin:0 auto; }
+  h1 { font-family:'Syne',sans-serif; font-size:28px; font-weight:800; letter-spacing:-0.5px; margin-bottom:4px; }
+  .subtitle { color:var(--muted); font-size:14px; margin-bottom:32px; }
+  .stats-row { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-bottom:32px; }
+  .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px 24px; }
+  .stat-card .label { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.8px; }
+  .stat-card .value { font-family:'Syne',sans-serif; font-size:36px; font-weight:800; margin-top:6px; }
+  .stat-card .value.red { color:var(--red); }
+  .users-table { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .table-head {
+    display:grid; grid-template-columns:1fr 1fr 140px 140px;
+    padding:12px 20px; font-size:11px; text-transform:uppercase;
+    letter-spacing:0.8px; color:var(--muted); border-bottom:1px solid var(--border);
+  }
+  .user-row {
+    display:grid; grid-template-columns:1fr 1fr 140px 140px;
+    padding:14px 20px; border-bottom:1px solid var(--border);
+    align-items:center; transition:background 0.15s;
+  }
+  .user-row:last-child { border-bottom:none; }
+  .user-row:hover { background:var(--surface2); }
+  .user-info { display:flex; align-items:center; gap:10px; }
+  .avatar { width:30px; height:30px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); }
+  .name { font-size:14px; font-weight:500; }
+  .email-text { font-size:13px; color:var(--muted); }
+  .date-text { font-size:13px; color:var(--muted); }
+  .empty { text-align:center; padding:48px; color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+<nav>
+  <a class="logo" href="/">Spam<span>urai</span></a>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span class="admin-badge">ADMIN</span>
+    <a href="/dashboard" class="btn-link">Dashboard</a>
+    <a href="/logout" class="btn-link">Sign out</a>
+  </div>
+</nav>
+
+<div class="page">
+  <h1>Admin Panel</h1>
+  <p class="subtitle">All users who've connected their Gmail</p>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="label">Total users</div>
+      <div class="value red">{{ total_users }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Latest signup</div>
+      <div class="value" style="font-size:18px;margin-top:10px;">
+        {% if users %}
+          {% set last_user = users.values()|list|last %}
+          {{ last_user.get('joined', '—') }}
+        {% else %}—{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="users-table">
+    <div class="table-head">
+      <div>Name</div>
+      <div>Email</div>
+      <div>Joined</div>
+      <div>Last seen</div>
+    </div>
+
+    {% if users %}
+      {% for email, info in users.items() %}
+      <div class="user-row">
+        <div class="user-info">
+          {% if info.picture %}
+            <img src="{{ info.picture }}" class="avatar" alt="">
+          {% else %}
+            <div class="avatar"></div>
+          {% endif %}
+          <span class="name">{{ info.name or '—' }}</span>
+        </div>
+        <div class="email-text">{{ email }}</div>
+        <div class="date-text">{{ info.joined or '—' }}</div>
+        <div class="date-text">{{ info.last_seen or info.joined or '—' }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">No users yet</div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

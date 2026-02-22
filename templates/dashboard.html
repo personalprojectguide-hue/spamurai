@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spamurai — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --red: #e63329;
+    --white: #f5f2ee;
+    --muted: #666;
+    --border: #222;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--white); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+
+  nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 48px;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(10,10,10,0.9);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+    text-decoration: none;
+    color: var(--white);
+  }
+  .logo span { color: var(--red); }
+  .nav-right { display: flex; align-items: center; gap: 16px; }
+  .user-info { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .user-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+  .btn-link { color: var(--muted); font-size: 13px; text-decoration: none; transition: color 0.2s; }
+  .btn-link:hover { color: var(--white); }
+
+  .page { padding: 100px 48px 48px; max-width: 1100px; margin: 0 auto; }
+
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .page-header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .page-header p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+  .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  .btn-primary {
+    background: var(--red);
+    color: var(--white);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .btn-primary:hover { background: #cc2a21; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .btn-danger {
+    background: rgba(230,51,41,0.1);
+    border: 1px solid rgba(230,51,41,0.3);
+    color: var(--red);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-danger:hover { background: rgba(230,51,41,0.2); }
+  .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-ghost:hover { border-color: #444; color: var(--white); }
+
+  /* summary cards */
+  .summary-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .summary-card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; }
+  .summary-card .value {
+    font-family: 'Syne', sans-serif;
+    font-size: 36px;
+    font-weight: 800;
+    margin-top: 6px;
+  }
+  .summary-card .value.red { color: var(--red); }
+
+  /* State panels */
+  .state-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 64px 32px;
+    text-align: center;
+  }
+  .state-panel h3 { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .state-panel p { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--red);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* spam table */
+  .spam-table {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .table-header {
+    display: grid;
+    grid-template-columns: 36px 1fr 80px 140px 180px;
+    gap: 16px;
+    padding: 12px 20px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+  }
+
+  .spam-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 80px 140px 180px;
+    gap: 16px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background 0.15s;
+  }
+  .spam-row:last-child { border-bottom: none; }
+  .spam-row:hover { background: var(--surface2); }
+
+  .row-check {
+    width: 16px; height: 16px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    appearance: none;
+    background: transparent;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .row-check:checked { background: var(--red); border-color: var(--red); }
+
+  .sender-info { display: flex; align-items: center; gap: 12px; overflow: hidden; }
+  .sender-avatar {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'Syne', sans-serif;
+    flex-shrink: 0;
+  }
+  .sender-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sender-email { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .count { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; }
+
+  .score-wrap { display: flex; align-items: center; gap: 8px; }
+  .score-bar { height: 4px; border-radius: 2px; background: var(--border); flex: 1; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 2px; background: var(--red); }
+  .score-pct { font-size: 12px; color: var(--muted); min-width: 32px; text-align: right; }
+
+  .row-actions { display: flex; gap: 6px; }
+  .action-btn {
+    padding: 6px 11px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  .action-btn.delete {
+    background: rgba(230,51,41,0.1);
+    color: var(--red);
+    border: 1px solid rgba(230,51,41,0.2);
+  }
+  .action-btn.delete:hover { background: rgba(230,51,41,0.25); }
+  .action-btn.unsub {
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .action-btn.unsub:hover { color: var(--white); border-color: #444; }
+  .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: 14px;
+    z-index: 999;
+    animation: slideUp 0.3s ease;
+    max-width: 320px;
+  }
+  .toast.success { border-color: #1a4a1a; background: #0a1a0a; color: #4caf50; }
+  .toast.error { border-color: rgba(230,51,41,0.4); background: #1a0a0a; color: var(--red); }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* color palette for avatars */
+  .av-0 { background: #1a0a0a; color: #e63329; }
+  .av-1 { background: #0a1020; color: #4a90e2; }
+  .av-2 { background: #0a150a; color: #34c759; }
+  .av-3 { background: #15100a; color: #ff9f0a; }
+  .av-4 { background: #100a15; color: #bf5af2; }
+  .av-5 { background: #0a1010; color: #30d5c8; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="/">Spam<span>urai</span></a>
+  <div class="nav-right">
+    <div class="user-info">
+      {% if user.picture %}
+        <img src="{{ user.picture }}" class="user-avatar" alt="">
+      {% endif %}
+      {{ user.email }}
+    </div>
+    <a href="/logout" class="btn-link">Sign out</a>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>Your Spammers ⚔️</h1>
+      <p id="scan-status">Press Scan to analyse your inbox</p>
+    </div>
+    <div class="header-actions">
+      <select id="filter-threshold" onchange="applyFilter()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:10px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">
+        <option value="0">All senders</option>
+        <option value="5" selected>5+ emails (spam)</option>
+        <option value="10">10+ emails</option>
+        <option value="25">25+ emails</option>
+        <option value="50">50+ emails</option>
+      </select>
+      <button class="btn-ghost" id="btn-select-all" onclick="toggleSelectAll()" disabled>Select all</button>
+      <button class="btn-danger" id="btn-nuke" onclick="nukeSelected()" disabled>🗡 Nuke selected</button>
+      <button class="btn-primary" id="btn-scan" onclick="startScan()">Scan inbox</button>
+    </div>
+  </div>
+
+  <div class="summary-row">
+    <div class="summary-card">
+      <div class="label">Total spam emails</div>
+      <div class="value red" id="stat-total">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Unique senders</div>
+      <div class="value" id="stat-senders">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Selected to nuke</div>
+      <div class="value red" id="stat-selected">0</div>
+    </div>
+  </div>
+
+  <div id="state-initial" class="state-panel">
+    <h3>Ready to clean up?</h3>
+    <p>Click Scan inbox to see who's been flooding your Gmail. We'll rank every sender by volume.</p>
+    <button class="btn-primary" onclick="startScan()" style="font-size:14px;padding:12px 28px;">Scan my inbox</button>
+  </div>
+
+  <div id="state-loading" class="state-panel" style="display:none;">
+    <div class="spinner"></div>
+    <h3>Scanning your inbox...</h3>
+    <p>Reading up to 1,000 recent emails. This takes about 30–60 seconds.</p>
+  </div>
+
+  <div id="state-results" style="display:none;">
+    <div class="spam-table">
+      <div class="table-header">
+        <div></div>
+        <div>Sender</div>
+        <div>Emails</div>
+        <div>Spam score</div>
+        <div>Actions</div>
+      </div>
+      <div id="results-body"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let senderData = [];
+  let selectedEmails = new Set();
+
+  const AVATAR_COLORS = ['av-0','av-1','av-2','av-3','av-4','av-5'];
+
+  function colorClass(i) {
+    return AVATAR_COLORS[i % AVATAR_COLORS.length];
+  }
+
+  function spamScore(count, maxCount) {
+    return Math.round((count / maxCount) * 100);
+  }
+
+  function toast(msg, type = 'success') {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  function updateSelectedStat() {
+    document.getElementById('stat-selected').textContent = selectedEmails.size;
+    document.getElementById('btn-nuke').disabled = selectedEmails.size === 0;
+  }
+
+  function toggleCheck(email, checkbox) {
+    if (checkbox.checked) {
+      selectedEmails.add(email);
+    } else {
+      selectedEmails.delete(email);
+    }
+    updateSelectedStat();
+  }
+
+  function toggleSelectAll() {
+    const allChecked = selectedEmails.size === senderData.length;
+    if (allChecked) {
+      selectedEmails.clear();
+      document.querySelectorAll('.row-check').forEach(c => c.checked = false);
+    } else {
+      senderData.forEach(s => selectedEmails.add(s.email));
+      document.querySelectorAll('.row-check').forEach(c => c.checked = true);
+    }
+    updateSelectedStat();
+  }
+
+  function renderResults(data) {
+    senderData = data.senders;
+    const maxCount = senderData[0]?.count || 1;
+
+    document.getElementById('stat-total').textContent = data.total_emails.toLocaleString();
+    document.getElementById('stat-senders').textContent = data.total_senders.toLocaleString();
+    document.getElementById('scan-status').textContent =
+      `${data.total_senders} senders found · scanned just now`;
+
+    const body = document.getElementById('results-body');
+    body.innerHTML = '';
+
+    senderData.forEach((sender, i) => {
+      const score = spamScore(sender.count, maxCount);
+      const initial = (sender.name || sender.email)[0].toUpperCase();
+      const color = colorClass(i);
+
+      const row = document.createElement('div');
+      row.className = 'spam-row';
+      row.id = `row-${i}`;
+      row.innerHTML = `
+        <input type="checkbox" class="row-check" onchange="toggleCheck('${sender.email}', this)">
+        <div class="sender-info">
+          <div class="sender-avatar ${color}">${initial}</div>
+          <div>
+            <div class="sender-name">${escHtml(sender.name)}</div>
+            <div class="sender-email">${escHtml(sender.email)}</div>
+          </div>
+        </div>
+        <div class="count">${sender.count.toLocaleString()}</div>
+        <div class="score-wrap">
+          <div class="score-bar"><div class="score-fill" style="width:${score}%"></div></div>
+          <span class="score-pct">${score}%</span>
+        </div>
+        <div class="row-actions">
+          <button class="action-btn delete" onclick="deleteAll('${sender.email}', ${i})">Delete all</button>
+          <button class="action-btn unsub" onclick="unsubscribe('${sender.email}', ${i})">Mark spam</button>
+        </div>
+      `;
+      body.appendChild(row);
+    });
+
+    document.getElementById('state-loading').style.display = 'none';
+    document.getElementById('state-results').style.display = 'block';
+    document.getElementById('btn-select-all').disabled = false;
+    applyFilter();
+  }
+
+  function applyFilter() {
+    const threshold = parseInt(document.getElementById('filter-threshold').value);
+    document.querySelectorAll('.spam-row').forEach((row, i) => {
+      const count = senderData[i]?.count || 0;
+      row.style.display = count >= threshold ? '' : 'none';
+    });
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  async function startScan() {
+    document.getElementById('state-initial').style.display = 'none';
+    document.getElementById('state-results').style.display = 'none';
+    document.getElementById('state-loading').style.display = 'block';
+    document.getElementById('btn-scan').disabled = true;
+    document.getElementById('btn-scan').textContent = 'Scanning...';
+
+    try {
+      const res = await fetch('/api/scan');
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      renderResults(data);
+      toast(`Found ${data.total_emails.toLocaleString()} emails from ${data.total_senders} senders`);
+    } catch (err) {
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-initial').style.display = 'block';
+      toast('Scan failed: ' + err.message, 'error');
+    } finally {
+      document.getElementById('btn-scan').disabled = false;
+      document.getElementById('btn-scan').textContent = 'Scan again';
+    }
+  }
+
+  async function deleteAll(email, rowIndex) {
+    const row = document.getElementById(`row-${rowIndex}`);
+    const btn = row.querySelector('.action-btn.delete');
+    btn.disabled = true;
+    btn.textContent = 'Deleting...';
+
+    try {
+      const res = await fetch('/api/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      toast(`Deleted ${data.deleted} emails from ${email}`);
+      row.style.opacity = '0.4';
+      row.style.pointerEvents = 'none';
+    } catch (err) {
+      toast('Delete failed: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Delete all';
+    }
+  }
+
+  async function unsubscribe(email, rowIndex) {
+    const row = document.getElementById(`row-${rowIndex}`);
+    const btn = row.querySelector('.action-btn.unsub');
+    btn.disabled = true;
+    btn.textContent = 'Marking...';
+
+    try {
+      const res = await fetch('/api/unsubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      toast(`Marked ${data.marked_spam} emails as spam — Gmail will filter future ones`);
+      btn.textContent = '✓ Marked';
+    } catch (err) {
+      toast('Failed: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Mark spam';
+    }
+  }
+
+  async function nukeSelected() {
+    if (selectedEmails.size === 0) return;
+    if (!confirm(`Nuke all emails from ${selectedEmails.size} senders? This can't be undone.`)) return;
+
+    document.getElementById('btn-nuke').disabled = true;
+    document.getElementById('btn-nuke').textContent = 'Nuking...';
+
+    try {
+      const res = await fetch('/api/nuke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails: [...selectedEmails] }),
+      });
+      const data = await res.json();
+      toast(`⚔️ Nuked ${data.deleted} emails from ${data.senders_nuked} senders`);
+
+      // Fade out nuked rows
+      selectedEmails.forEach(email => {
+        senderData.forEach((s, i) => {
+          if (s.email === email) {
+            const row = document.getElementById(`row-${i}`);
+            if (row) { row.style.opacity = '0.3'; row.style.pointerEvents = 'none'; }
+          }
+        });
+      });
+
+      selectedEmails.clear();
+      updateSelectedStat();
+      document.querySelectorAll('.row-check').forEach(c => c.checked = false);
+    } catch (err) {
+      toast('Nuke failed: ' + err.message, 'error');
+    } finally {
+      document.getElementById('btn-nuke').disabled = true;
+      document.getElementById('btn-nuke').textContent = '🗡 Nuke selected';
+    }
+  }
+</script>
+
+</body>
+</html>
