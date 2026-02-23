@@ -74,12 +74,15 @@ def credentials_to_dict(creds):
 def get_credentials():
     if "credentials" not in session:
         return None
-    creds = Credentials(**session["credentials"])
-    if creds.expired and creds.refresh_token:
-        creds.refresh(google.auth.transport.requests.Request())
-        session["credentials"] = credentials_to_dict(creds)
-    return creds
-
+    try:
+        creds = Credentials(**session["credentials"])
+        if creds.expired and creds.refresh_token:
+            creds.refresh(google.auth.transport.requests.Request())
+            session["credentials"] = credentials_to_dict(creds)
+        return creds
+    except Exception:
+        session.clear()
+        return None
 
 def gmail_service():
     creds = get_credentials()
