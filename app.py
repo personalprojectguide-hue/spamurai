@@ -158,78 +158,74 @@ def admin():
 
 @app.route("/api/scan")
 def api_scan():
-    service = gmail_service()
-    if not service:
-        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        service = gmail_service()
+        if not service:
+            return jsonify({"error": "Not authenticated"}), 401
 
-    sender_data = defaultdict(lambda: {"count": 0, "ids": [], "name": "", "email": ""})
+        sender_data = defaultdict(lambda: {"count": 0, "ids": [], "name": "", "email": ""})
 
-    page_token = None
+        page_token = None
 
-    while True:
-        params = {
-            "userId": "me",
-            "maxResults": 500,
-            "q": "in:inbox",
-        }
-        if page_token:
-            params["pageToken"] = page_token
-
-        result = service.users().messages().list(**params).execute()
-        messages = result.get("messages", [])
-
-        if not messages:
-            break
-
-        for msg in messages:
-            msg_detail = service.users().messages().get(
-                userId="me",
-                id=msg["id"],
-                format="metadata",
-                metadataHeaders=["From"],
-            ).execute()
-
-            headers = msg_detail.get("payload", {}).get("headers", [])
-            from_header = next((h["value"] for h in headers if h["name"] == "From"), "")
-
-            if "<" in from_header:
-                name = from_header.split("<")[0].strip().strip('"')
-                email = from_header.split("<")[1].strip(">").strip()
-            else:
-                name = from_header
-                email = from_header
-
-            key = email.lower()
-            sender_data[key]["count"] += 1
-            sender_data[key]["ids"].append(msg["id"])
-            sender_data[key]["name"] = name or email
-            sender_data[key]["email"] = email
-
-        page_token = result.get("nextPageToken")
-        if not page_token:
-            break
-
-    sorted_senders = sorted(
-        [
-            {
-                "name": v["name"],
-                "email": k,
-                "count": v["count"],
-                "ids": v["ids"],
+        while True:
+            params = {
+                "userId": "me",
+                "maxResults": 500,
+                "q": "in:inbox",
             }
-            for k, v in sender_data.items()
-        ],
-        key=lambda x: x["count"],
-        reverse=True,
-    )
+            if page_token:
+                params["pageToken"] = page_token
 
-    total_emails = sum(s["count"] for s in sorted_senders)
+            result = service.users().messages().list(**params).execute()
+            messages = result.get("messages", [])
 
-    return jsonify({
-        "total_emails": total_emails,
-        "total_senders": len(sorted_senders),
-        "senders": sorted_senders[:100],
-    })
+            if not messages:
+                break
+
+            for msg in messages:
+                msg_detail = service.users().messages().get(
+                    userId="me",
+                    id=msg["id"],
+                    format="metadata",
+                    metadataHeaders=["From"],
+                ).execute()
+
+                headers = msg_detail.get("payload", {}).get("headers", [])
+                from_header = next((h["value"] for h in headers if h["name"] == "From"), "")
+
+                if "<" in from_header:
+                    name = from_header.split("<")[0].strip().strip('"')
+                    email = from_header.split("<")[1].strip(">").strip()
+                else:
+                    name = from_header
+                    email = from_header
+
+                key = email.lower()
+                sender_data[key]["count"] += 1
+                sender_data[key]["ids"].append(msg["id"])
+                sender_data[key]["name"] = name or email
+                sender_data[key]["email"] = email
+
+            page_token = result.get("nextPageToken")
+            if not page_token:
+                break
+
+        sorted_senders = sorted(
+            [{"name": v["name"], "email": k, "count": v["count"], "ids": v["ids"]} for k, v in sender_data.items()],
+            key=lambda x: x["count"],
+            reverse=True,
+        )
+
+        total_emails = sum(s["count"] for s in sorted_senders)
+
+        return jsonify({
+            "total_emails": total_emails,
+            "total_senders": len(sorted_senders),
+            "senders": sorted_senders[:100],
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ─── API: Delete all emails from a sender ─────────────────────────────────────
