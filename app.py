@@ -166,59 +166,54 @@ def api_scan():
         if not service:
             return jsonify({"error": "Not authenticated"}), 401
 
-        sender_data = defaultdict(lambda: {"count": 0, "ids": [], "name": "", "email": ""})
+        sender_data = defaultdict(lambda: {"count": 0, "name": "", "email": ""})
 
+        # Step 1: Get all message IDs
+        all_ids = []
         page_token = None
-
-        MAX_EMAILS = 1000
-        total_fetched = 0
-
-        while total_fetched < MAX_EMAILS:
-            params = {
-                "userId": "me",
-                "maxResults": 500,
-                "q": "in:inbox",
-            }
+        while len(all_ids) < 1000:
+            params = {"userId": "me", "maxResults": 500, "q": "in:inbox"}
             if page_token:
                 params["pageToken"] = page_token
-
             result = service.users().messages().list(**params).execute()
             messages = result.get("messages", [])
-
-            if not messages:
-                break
-
-            for msg in messages:
-                msg_detail = service.users().messages().get(
-                    userId="me",
-                    id=msg["id"],
-                    format="metadata",
-                    metadataHeaders=["From"],
-                ).execute()
-
-                headers = msg_detail.get("payload", {}).get("headers", [])
-                from_header = next((h["value"] for h in headers if h["name"] == "From"), "")
-
-                if "<" in from_header:
-                    name = from_header.split("<")[0].strip().strip('"')
-                    email = from_header.split("<")[1].strip(">").strip()
-                else:
-                    name = from_header
-                    email = from_header
-
-                key = email.lower()
-                sender_data[key]["count"] += 1
-                sender_data[key]["ids"].append(msg["id"])
-                sender_data[key]["name"] = name or email
-                sender_data[key]["email"] = email
-
-            total_fetched += len(messages)
+            all_ids.extend([m["id"] for m in messages])
             page_token = result.get("nextPageToken")
             if not page_token:
                 break
 
+        # Step 2: Batch fetch headers — 100 at a time
+        def process_batch(request_id, response, exception):
+            if exception:
+                return
+            headers = response.get("payload", {}).get("headers", [])
+            from_header = next((h["value"] for h in headers if h["name"] == "From"), "")
+            if not from_header:
+                return
+            if "<" in from_header:
+                name = from_header.split("<")[0].strip().strip('"')
+                email = from_header.split("<")[1].strip(">").strip()
+            else:
+                name = from_header
+                email = from_header
+            key = email.lower()
+            sender_data[key]["count"] += 1
+            sender_data[key]["name"] = name or email
+            sender_data[key]["email"] = email
+
+        for i in range(0, len(all_ids), 100):
+            batch = service.new_batch_http_request(callback=process_batch)
+            for msg_id in all_ids[i:i+100]:
+                batch.add(service.users().messages().get(
+                    userId="me",
+                    id=msg_id,
+                    format="metadata",
+                    metadataHeaders=["From"],
+                ))
+            batch.execute()
+
         sorted_senders = sorted(
-            [{"name": v["name"], "email": k, "count": v["count"], "ids": v["ids"]} for k, v in sender_data.items()],
+            [{"name": v["name"], "email": k, "count": v["count"]} for k, v in sender_data.items()],
             key=lambda x: x["count"],
             reverse=True,
         )
