@@ -9,7 +9,7 @@ import google.auth.transport.requests
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("aura", "dev-secret-change-in-production")
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -170,7 +170,10 @@ def api_scan():
 
         page_token = None
 
-        while True:
+        MAX_EMAILS = 5000
+        total_fetched = 0
+
+        while total_fetched < MAX_EMAILS:
             params = {
                 "userId": "me",
                 "maxResults": 500,
@@ -209,6 +212,7 @@ def api_scan():
                 sender_data[key]["name"] = name or email
                 sender_data[key]["email"] = email
 
+            total_fetched += len(messages)
             page_token = result.get("nextPageToken")
             if not page_token:
                 break
