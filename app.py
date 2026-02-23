@@ -170,7 +170,7 @@ def api_scan():
 
         page_token = None
 
-        MAX_EMAILS = 5000
+        MAX_EMAILS = 1000
         total_fetched = 0
 
         while total_fetched < MAX_EMAILS:
