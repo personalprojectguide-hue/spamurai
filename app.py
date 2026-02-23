@@ -11,9 +11,6 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
 
-# Allow HTTP for local dev — remove in production
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-
 CLIENT_SECRETS_FILE = "credentials.json"
 USERS_FILE = "users.json"
 ADMIN_EMAIL = "personalprojectguide@gmail.com"  # ← change this to your email
