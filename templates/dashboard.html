@@ -271,6 +271,18 @@
   .av-3 { background: #15100a; color: #ff9f0a; }
   .av-4 { background: #100a15; color: #bf5af2; }
   .av-5 { background: #0a1010; color: #30d5c8; }
+
+  @media (max-width: 768px) {
+  .page { padding: 90px 16px 32px; }
+  .inbox-header { padding: 20px 16px; flex-direction: column; align-items: flex-start; }
+  .header-actions { flex-wrap: wrap; gap: 8px; }
+  .summary-row { grid-template-columns: 1fr; }
+  .spam-table { overflow-x: auto; }
+  .table-header, .spam-row { grid-template-columns: 24px 1fr 60px 100px; gap: 8px; padding: 12px; }
+  .row-actions { flex-direction: column; gap: 4px; }
+  .score-wrap { display: none; }
+  nav { padding: 16px 20px; }
+}
 </style>
 </head>
 <body>
@@ -296,8 +308,8 @@
     </div>
     <div class="header-actions">
       <select id="filter-threshold" onchange="applyFilter()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:10px 14px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">
-        <option value="0">All senders</option>
-        <option value="5" selected>5+ emails (spam)</option>
+        <option value="0" selected>All senders</option>
+        <option value="5">5+ emails (spam)</option>
         <option value="10">10+ emails</option>
         <option value="25">25+ emails</option>
         <option value="50">50+ emails</option>
