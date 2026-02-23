@@ -14,6 +14,7 @@ app.secret_key = os.environ.get("aura", "dev-secret-change-in-production")
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
+
 CLIENT_SECRETS_FILE = "credentials.json"
 USERS_FILE = "users.json"
 ADMIN_EMAIL = "personalprojectguide@gmail.com"  # ← change this to your email
@@ -55,7 +56,7 @@ def get_flow():
     return Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE,
         scopes=SCOPES,
-        redirect_uri=url_for("oauth_callback", _external=True),
+        redirect_uri="https://spamurai.up.railway.app/oauth/callback",
     )
 
 
