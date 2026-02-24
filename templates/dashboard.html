@@ -507,6 +507,7 @@
       });
       const data = await res.json();
       toast(`Deleted ${data.deleted} emails from ${email}`);
+      row.querySelector('.count').textContent = data.deleted.toLocaleString();
       row.style.opacity = '0.4';
       row.style.pointerEvents = 'none';
     } catch (err) {
