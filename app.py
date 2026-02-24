@@ -201,16 +201,17 @@ def api_scan():
             sender_data[key]["name"] = name or email
             sender_data[key]["email"] = email
 
-        for i in range(0, len(all_ids), 100):
-            batch = service.new_batch_http_request(callback=process_batch)
-            for msg_id in all_ids[i:i+100]:
-                batch.add(service.users().messages().get(
-                    userId="me",
-                    id=msg_id,
-                    format="metadata",
-                    metadataHeaders=["From"],
-                ))
-            batch.execute()
+	for i in range(0, len(all_ids), 100):
+    	time.sleep(0.5)
+    	batch = service.new_batch_http_request(callback=process_batch)
+    	for msg_id in all_ids[i:i+100]:
+        	batch.add(service.users().messages().get(
+            	userId="me",
+            	id=msg_id,
+            	format="metadata",
+            	metadataHeaders=["From"],
+        	))
+    	batch.execute()
 
         sorted_senders = sorted(
             [{"name": v["name"], "email": k, "count": v["count"]} for k, v in sender_data.items()],
@@ -255,12 +256,11 @@ def api_delete():
 
     ids = [m["id"] for m in messages]
 
-    service.users().messages().batchDelete(
-        userId="me",
-        body={"ids": ids},
-    ).execute()
-
-    return jsonify({"deleted": len(ids)})
+	time.sleep(0.5)
+	service.users().messages().batchDelete(
+    		userId="me",
+    		body={"ids": ids},
+	).execute()
 
 
 # ─── API: Nuke multiple senders ───────────────────────────────────────────────
