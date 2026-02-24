@@ -231,7 +231,7 @@ def api_delete():
     while True:
         result = service.users().messages().list(
             userId="me",
-            q=f"from:{email}",
+            q=f"from:{email} in:anywhere",
             maxResults=500,
         ).execute()
         messages = result.get("messages", [])
