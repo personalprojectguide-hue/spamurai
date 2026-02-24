@@ -149,9 +149,9 @@ def execute_batch_with_retry(service, msg_ids, sender_data, max_retries=5):
 
         ids_to_fetch = failed_ids
         if ids_to_fetch and attempt < max_retries - 1:
-            wait_time = min(2 ** attempt, 5)  # exponential backoff, max 5s to avoid timeout
-            print(f"Retry {attempt + 1}/{max_retries - 1}: Waiting {wait_time}s before retrying {len(ids_to_fetch)} messages...")
-            time.sleep(wait_time)
+            wait_time = min(2 ** attempt, 1)  # exponential backoff, max 1s to avoid timeout
+            if wait_time > 0:
+                time.sleep(wait_time)
 
     # If any IDs still remain, raise an error so the scan fails explicitly
     if ids_to_fetch:
@@ -245,11 +245,11 @@ def api_scan():
                 return jsonify({"error": f"Failed to list messages: {str(e)}"}), 500
 
         # Step 2: Fetch sender headers in batches of 500
-        batch_size = 100
+        batch_size = 500
         for i in range(0, len(all_ids), batch_size):
             chunk = all_ids[i:i + batch_size]
-            time.sleep(0.3)  # small delay to avoid rate limit bursts
-            execute_batch_with_retry(service, chunk, sender_data, max_retries=3)
+            # No delay - prioritize speed over rate limit concerns
+            execute_batch_with_retry(service, chunk, sender_data, max_retries=1)
 
         sorted_senders = sorted(
             [
