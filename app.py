@@ -1,7 +1,6 @@
 import os
 import json
 import time
-from collections import defaultdict
 from flask import Flask, redirect, url_for, session, request, jsonify, render_template, abort
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -32,6 +31,7 @@ def load_users():
         return {}
     with open(USERS_FILE) as f:
         return json.load(f)
+
 
 def save_user(user):
     users = load_users()
@@ -80,83 +80,15 @@ def get_credentials():
         session.clear()
         return None
 
+
 def gmail_service():
     creds = get_credentials()
     if not creds:
         return None
     try:
         return build("gmail", "v1", credentials=creds)
-    except Exception as e:
-        print(f"Error building Gmail service: {e}")
+    except Exception:
         return None
-
-
-def execute_batch_with_retry(service, msg_ids, sender_data, max_retries=5):
-    """
-    Fetch sender headers for all msg_ids. Raises an exception if after max_retries
-    any IDs remain unprocessed.
-    """
-    ids_to_fetch = list(msg_ids)
-
-    for attempt in range(max_retries):
-        if not ids_to_fetch:
-            break
-
-        failed_ids = []
-
-        def make_callback(chunk_ids):
-            id_map = {str(idx): msg_id for idx, msg_id in enumerate(chunk_ids)}
-            def process_batch(request_id, response, exception):
-                msg_id = id_map.get(str(request_id))
-                if exception or response is None:
-                    if msg_id:
-                        failed_ids.append(msg_id)
-                    return
-                headers = response.get("payload", {}).get("headers", [])
-                from_header = next(
-                    (h["value"] for h in headers if h["name"].lower() == "from"), ""
-                )
-                if not from_header:
-                    return
-                if "<" in from_header:
-                    name = from_header.split("<")[0].strip().strip('"')
-                    email = from_header.split("<")[1].strip(">").strip()
-                else:
-                    name = from_header
-                    email = from_header
-                key = email.lower()
-                sender_data[key]["count"] += 1
-                sender_data[key]["name"] = name or email
-                sender_data[key]["email"] = email
-            return process_batch
-
-        callback = make_callback(ids_to_fetch)
-        batch = service.new_batch_http_request(callback=callback)
-        for msg_id in ids_to_fetch:
-            batch.add(
-                service.users().messages().get(
-                    userId="me",
-                    id=msg_id,
-                    format="metadata",
-                    metadataHeaders=["From"],
-                )
-            )
-        try:
-            batch.execute()
-        except Exception:
-            # Entire batch failed – mark all for retry
-            failed_ids = list(ids_to_fetch)
-
-        ids_to_fetch = failed_ids
-        if ids_to_fetch and attempt < max_retries - 1:
-            wait_time = min(2 ** attempt, 5)  # exponential backoff, max 5s to avoid timeout
-            print(f"Retry {attempt + 1}/{max_retries - 1}: Waiting {wait_time}s before retrying {len(ids_to_fetch)} messages...")
-            time.sleep(wait_time)
-
-    # If any IDs still remain, raise an error so the scan fails explicitly
-    if ids_to_fetch:
-        raise RuntimeError(f"Failed to fetch {len(ids_to_fetch)} messages after {max_retries} retries")
-    return ids_to_fetch
 
 
 @app.route("/")
@@ -223,56 +155,86 @@ def api_scan():
     try:
         service = gmail_service()
         if not service:
-            return jsonify({"error": "Not authenticated or API error"}), 401
+            return jsonify({"error": "Not authenticated"}), 401
 
-        sender_data = defaultdict(lambda: {"count": 0, "name": "", "email": ""})
+        sender_data = {}
 
-        # Step 1: Collect ALL message IDs via full pagination
-        # Exclude sent and drafts — we only want emails received from other people
+        # Step 1: get all message IDs — exclude sent & drafts, only count received mail
         all_ids = []
         page_token = None
         while True:
-            try:
-                params = {"userId": "me", "maxResults": 500, "q": "-in:sent -in:drafts"}
-                if page_token:
-                    params["pageToken"] = page_token
-                result = service.users().messages().list(**params).execute()
-                messages = result.get("messages", [])
-                all_ids.extend([m["id"] for m in messages])
-                page_token = result.get("nextPageToken")
-                if not page_token:
-                    break
-            except Exception as e:
-                return jsonify({"error": f"Failed to list messages: {str(e)}"}), 500
+            params = {
+                "userId": "me",
+                "maxResults": 500,
+                "q": "-in:sent -in:drafts",
+                "fields": "messages/id,nextPageToken",
+            }
+            if page_token:
+                params["pageToken"] = page_token
+            result = service.users().messages().list(**params).execute()
+            for m in result.get("messages", []):
+                all_ids.append(m["id"])
+            page_token = result.get("nextPageToken")
+            if not page_token:
+                break
 
-        # Deduplicate IDs — Gmail API can return the same message across pages
+        # Deduplicate
         all_ids = list(dict.fromkeys(all_ids))
 
-        # Step 2: Fetch sender headers in batches of 500
-        batch_size = 100
-        for i in range(0, len(all_ids), batch_size):
-            chunk = all_ids[i:i + batch_size]
-            time.sleep(0.3)  # small delay to avoid rate limit bursts
-            execute_batch_with_retry(service, chunk, sender_data, max_retries=3)
+        # Step 2: fetch From headers in batches of 100
+        # No sleeps, no retries — both cause gunicorn worker timeouts
+        for i in range(0, len(all_ids), 100):
+            chunk = all_ids[i:i + 100]
+
+            def make_callback():
+                def cb(request_id, response, exception):
+                    if exception or not response:
+                        return
+                    headers = response.get("payload", {}).get("headers", [])
+                    from_val = next(
+                        (h["value"] for h in headers if h["name"].lower() == "from"), ""
+                    )
+                    if not from_val:
+                        return
+                    if "<" in from_val:
+                        name = from_val.split("<")[0].strip().strip('"')
+                        addr = from_val.split("<")[1].strip(">").strip()
+                    else:
+                        name = from_val.strip()
+                        addr = from_val.strip()
+                    key = addr.lower()
+                    if key not in sender_data:
+                        sender_data[key] = {"name": name or addr, "email": addr, "count": 0}
+                    sender_data[key]["count"] += 1
+                return cb
+
+            batch = service.new_batch_http_request(callback=make_callback())
+            for mid in chunk:
+                batch.add(
+                    service.users().messages().get(
+                        userId="me",
+                        id=mid,
+                        format="metadata",
+                        metadataHeaders=["From"],
+                    )
+                )
+            try:
+                batch.execute()
+            except Exception:
+                pass
 
         sorted_senders = sorted(
-            [
-                {"name": v["name"], "email": k, "count": v["count"]}
-                for k, v in sender_data.items()
-            ],
+            sender_data.values(),
             key=lambda x: x["count"],
             reverse=True,
         )
-
         total_emails = sum(s["count"] for s in sorted_senders)
 
-        return jsonify(
-            {
-                "total_emails": total_emails,
-                "total_senders": len(sorted_senders),
-                "senders": sorted_senders,
-            }
-        )
+        return jsonify({
+            "total_emails": total_emails,
+            "total_senders": len(sorted_senders),
+            "senders": list(sorted_senders),
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -300,7 +262,6 @@ def api_delete():
         if not messages:
             break
         ids = [m["id"] for m in messages]
-        time.sleep(0.5)
         service.users().messages().batchDelete(
             userId="me",
             body={"ids": ids},
@@ -321,7 +282,6 @@ def api_nuke():
     total_deleted = 0
 
     for email in emails:
-        # in:anywhere matches the same scope the scan used
         while True:
             result = service.users().messages().list(
                 userId="me",
@@ -332,7 +292,6 @@ def api_nuke():
             if not messages:
                 break
             ids = [m["id"] for m in messages]
-            time.sleep(0.5)
             service.users().messages().batchDelete(
                 userId="me",
                 body={"ids": ids},
