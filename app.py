@@ -156,17 +156,22 @@ def api_scan():
         sender_data = defaultdict(lambda: {"count": 0, "name": "", "email": ""})
 
         all_ids = []
-        page_token = None
-        while True:
-            params = {"userId": "me", "maxResults": 500, "q": "in:inbox OR in:promotions OR in:updates OR in:social"}
-            if page_token:
-                params["pageToken"] = page_token
-            result = service.users().messages().list(**params).execute()
-            messages = result.get("messages", [])
-            all_ids.extend([m["id"] for m in messages])
-            page_token = result.get("nextPageToken")
-            if not page_token:
-                break
+        seen_ids = set()
+        for label in ["INBOX", "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_SOCIAL"]:
+            page_token = None
+            while True:
+                params = {"userId": "me", "labelIds": [label], "maxResults": 500}
+                if page_token:
+                    params["pageToken"] = page_token
+                result = service.users().messages().list(**params).execute()
+                messages = result.get("messages", [])
+                for m in messages:
+                    if m["id"] not in seen_ids:
+                        seen_ids.add(m["id"])
+                        all_ids.append(m["id"])
+                page_token = result.get("nextPageToken")
+                if not page_token:
+                    break
 
         def process_batch(request_id, response, exception):
             if exception:
@@ -196,7 +201,14 @@ def api_scan():
                     format="metadata",
                     metadataHeaders=["From"],
                 ))
-            batch.execute()
+            try:
+                batch.execute()
+            except Exception:
+                time.sleep(3)
+                try:
+                    batch.execute()
+                except Exception:
+                    pass
 
         sorted_senders = sorted(
             [{"name": v["name"], "email": k, "count": v["count"]} for k, v in sender_data.items()],
