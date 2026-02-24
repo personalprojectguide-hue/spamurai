@@ -227,24 +227,25 @@ def api_delete():
     if not email:
         return jsonify({"error": "No email provided"}), 400
 
-    result = service.users().messages().list(
-        userId="me",
-        q=f"from:{email}",
-        maxResults=500,
-    ).execute()
+    total_deleted = 0
+    while True:
+        result = service.users().messages().list(
+            userId="me",
+            q=f"from:{email}",
+            maxResults=500,
+        ).execute()
+        messages = result.get("messages", [])
+        if not messages:
+            break
+        ids = [m["id"] for m in messages]
+        time.sleep(0.5)
+        service.users().messages().batchDelete(
+            userId="me",
+            body={"ids": ids},
+        ).execute()
+        total_deleted += len(ids)
 
-    messages = result.get("messages", [])
-    if not messages:
-        return jsonify({"deleted": 0})
-
-    ids = [m["id"] for m in messages]
-    time.sleep(0.5)
-    service.users().messages().batchDelete(
-        userId="me",
-        body={"ids": ids},
-    ).execute()
-
-    return jsonify({"deleted": len(ids)})
+    return jsonify({"deleted": total_deleted})
 
 
 @app.route("/api/nuke", methods=["POST"])
