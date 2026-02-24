@@ -171,7 +171,7 @@ def api_scan():
         # Step 1: Get all message IDs
         all_ids = []
         page_token = None
-        while len(all_ids) < 1000:
+        while True:
             params = {"userId": "me", "maxResults": 500, "q": "in:inbox"}
             if page_token:
                 params["pageToken"] = page_token
