@@ -158,7 +158,7 @@ def api_scan():
         all_ids = []
         page_token = None
         while True:
-            params = {"userId": "me", "maxResults": 500, "q": ""}
+            params = {"userId": "me", "maxResults": 500, "q": "in:anywhere"}
             if page_token:
                 params["pageToken"] = page_token
             result = service.users().messages().list(**params).execute()
