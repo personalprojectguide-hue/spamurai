@@ -156,22 +156,17 @@ def api_scan():
         sender_data = defaultdict(lambda: {"count": 0, "name": "", "email": ""})
 
         all_ids = []
-        seen_ids = set()
-        for label in ["INBOX", "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_SOCIAL"]:
-            page_token = None
-            while True:
-                params = {"userId": "me", "labelIds": [label], "maxResults": 500}
-                if page_token:
-                    params["pageToken"] = page_token
-                result = service.users().messages().list(**params).execute()
-                messages = result.get("messages", [])
-                for m in messages:
-                    if m["id"] not in seen_ids:
-                        seen_ids.add(m["id"])
-                        all_ids.append(m["id"])
-                page_token = result.get("nextPageToken")
-                if not page_token:
-                    break
+        page_token = None
+        while True:
+            params = {"userId": "me", "maxResults": 500, "q": "in:anywhere"}
+            if page_token:
+                params["pageToken"] = page_token
+            result = service.users().messages().list(**params).execute()
+            messages = result.get("messages", [])
+            all_ids.extend([m["id"] for m in messages])
+            page_token = result.get("nextPageToken")
+            if not page_token:
+                break
 
         def process_batch(request_id, response, exception):
             if exception:
@@ -191,24 +186,17 @@ def api_scan():
             sender_data[key]["name"] = name or email
             sender_data[key]["email"] = email
 
-        for i in range(0, len(all_ids), 50):
-            time.sleep(1)
+        for i in range(0, len(all_ids), 100):
+            time.sleep(0.5)
             batch = service.new_batch_http_request(callback=process_batch)
-            for msg_id in all_ids[i:i+50]:
+            for msg_id in all_ids[i:i+100]:
                 batch.add(service.users().messages().get(
                     userId="me",
                     id=msg_id,
                     format="metadata",
                     metadataHeaders=["From"],
                 ))
-            try:
-                batch.execute()
-            except Exception:
-                time.sleep(3)
-                try:
-                    batch.execute()
-                except Exception:
-                    pass
+            batch.execute()
 
         sorted_senders = sorted(
             [{"name": v["name"], "email": k, "count": v["count"]} for k, v in sender_data.items()],
@@ -243,7 +231,7 @@ def api_delete():
     while True:
         result = service.users().messages().list(
             userId="me",
-            q=f"from:{email} (in:inbox OR in:promotions OR in:updates OR in:social)",
+            q=f"from:{email} in:anywhere",
             maxResults=500,
         ).execute()
         messages = result.get("messages", [])
@@ -273,7 +261,7 @@ def api_nuke():
     for email in emails:
         result = service.users().messages().list(
             userId="me",
-            q=f"from:{email} (in:inbox OR in:promotions OR in:updates OR in:social)",
+            q=f"from:{email}",
             maxResults=500,
         ).execute()
         messages = result.get("messages", [])
@@ -302,7 +290,7 @@ def api_unsubscribe():
 
     result = service.users().messages().list(
         userId="me",
-        q=f"from:{email} (in:inbox OR in:promotions OR in:updates OR in:social)",
+        q=f"from:{email}",
         maxResults=500,
     ).execute()
 
