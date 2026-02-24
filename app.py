@@ -149,7 +149,7 @@ def execute_batch_with_retry(service, msg_ids, sender_data, max_retries=5):
 
         ids_to_fetch = failed_ids
         if ids_to_fetch and attempt < max_retries - 1:
-            wait_time = min(2 ** (attempt + 1), 30)  # exponential backoff, max 30s
+            wait_time = min(2 ** attempt, 5)  # exponential backoff, max 5s to avoid timeout
             print(f"Retry {attempt + 1}/{max_retries - 1}: Waiting {wait_time}s before retrying {len(ids_to_fetch)} messages...")
             time.sleep(wait_time)
 
@@ -248,8 +248,8 @@ def api_scan():
         batch_size = 100
         for i in range(0, len(all_ids), batch_size):
             chunk = all_ids[i:i + batch_size]
-            time.sleep(0.5)  # increased delay to avoid rate limit bursts
-            execute_batch_with_retry(service, chunk, sender_data, max_retries=5)
+            time.sleep(0.3)  # small delay to avoid rate limit bursts
+            execute_batch_with_retry(service, chunk, sender_data, max_retries=3)
 
         sorted_senders = sorted(
             [
