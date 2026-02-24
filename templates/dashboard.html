@@ -411,7 +411,14 @@
   }
 
   function renderResults(data) {
-    senderData = data.senders;
+    senderData = data.senders || [];
+    if (senderData.length === 0) {
+      document.getElementById('stat-total').textContent = '0';
+      document.getElementById('stat-senders').textContent = '0';
+      document.getElementById('scan-status').textContent = 'No senders found';
+      return;
+    }
+    
     const maxCount = senderData[0]?.count || 1;
 
     document.getElementById('stat-total').textContent = data.total_emails.toLocaleString();
@@ -424,7 +431,8 @@
 
     senderData.forEach((sender, i) => {
       const score = spamScore(sender.count, maxCount);
-      const initial = (sender.name || sender.email)[0].toUpperCase();
+      const senderIdentifier = sender.name || sender.email || 'Unknown';
+      const initial = (senderIdentifier && senderIdentifier.length > 0) ? senderIdentifier[0].toUpperCase() : 'U';
       const color = colorClass(i);
 
       const row = document.createElement('div');
