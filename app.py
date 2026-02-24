@@ -209,7 +209,7 @@ def api_scan():
         return jsonify({
             "total_emails": total_emails,
             "total_senders": len(sorted_senders),
-            "senders": sorted_senders[:100],
+            "senders": sorted_senders,
         })
 
     except Exception as e:
