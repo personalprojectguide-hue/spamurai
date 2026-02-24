@@ -84,14 +84,17 @@ def gmail_service():
     creds = get_credentials()
     if not creds:
         return None
-    return build("gmail", "v1", credentials=creds)
+    try:
+        return build("gmail", "v1", credentials=creds)
+    except Exception as e:
+        print(f"Error building Gmail service: {e}")
+        return None
 
 
-def execute_batch_with_retry(service, msg_ids, sender_data, max_retries=3):
+def execute_batch_with_retry(service, msg_ids, sender_data, max_retries=5):
     """
-    Execute a batch request for the given message IDs, tracking which IDs
-    fail and retrying them. This ensures no messages are silently skipped
-    due to transient API errors or rate limits.
+    Fetch sender headers for all msg_ids. Raises an exception if after max_retries
+    any IDs remain unprocessed.
     """
     ids_to_fetch = list(msg_ids)
 
@@ -102,16 +105,10 @@ def execute_batch_with_retry(service, msg_ids, sender_data, max_retries=3):
         failed_ids = []
 
         def make_callback(chunk_ids):
-            # Build a mapping from batch request_id (0-indexed string) -> msg_id
             id_map = {str(idx): msg_id for idx, msg_id in enumerate(chunk_ids)}
-
             def process_batch(request_id, response, exception):
                 msg_id = id_map.get(str(request_id))
-                if exception:
-                    if msg_id:
-                        failed_ids.append(msg_id)
-                    return
-                if response is None:
+                if exception or response is None:
                     if msg_id:
                         failed_ids.append(msg_id)
                     return
@@ -131,7 +128,6 @@ def execute_batch_with_retry(service, msg_ids, sender_data, max_retries=3):
                 sender_data[key]["count"] += 1
                 sender_data[key]["name"] = name or email
                 sender_data[key]["email"] = email
-
             return process_batch
 
         callback = make_callback(ids_to_fetch)
@@ -148,14 +144,17 @@ def execute_batch_with_retry(service, msg_ids, sender_data, max_retries=3):
         try:
             batch.execute()
         except Exception:
-            # Entire batch call failed — mark all IDs for retry
+            # Entire batch failed – mark all for retry
             failed_ids = list(ids_to_fetch)
 
         ids_to_fetch = failed_ids
         if ids_to_fetch and attempt < max_retries - 1:
-            time.sleep(1.5 * (attempt + 1))  # exponential backoff
+            time.sleep(2 ** attempt)  # exponential backoff
 
-    return ids_to_fetch  # any permanently failed IDs
+    # If any IDs still remain, raise an error so the scan fails explicitly
+    if ids_to_fetch:
+        raise RuntimeError(f"Failed to fetch {len(ids_to_fetch)} messages after {max_retries} retries")
+    return ids_to_fetch
 
 
 @app.route("/")
@@ -222,7 +221,7 @@ def api_scan():
     try:
         service = gmail_service()
         if not service:
-            return jsonify({"error": "Not authenticated"}), 401
+            return jsonify({"error": "Not authenticated or API error"}), 401
 
         sender_data = defaultdict(lambda: {"count": 0, "name": "", "email": ""})
 
@@ -230,21 +229,24 @@ def api_scan():
         all_ids = []
         page_token = None
         while True:
-            params = {"userId": "me", "maxResults": 500, "q": "in:anywhere"}
-            if page_token:
-                params["pageToken"] = page_token
-            result = service.users().messages().list(**params).execute()
-            messages = result.get("messages", [])
-            all_ids.extend([m["id"] for m in messages])
-            page_token = result.get("nextPageToken")
-            if not page_token:
-                break
+            try:
+                params = {"userId": "me", "maxResults": 500, "q": "in:anywhere"}
+                if page_token:
+                    params["pageToken"] = page_token
+                result = service.users().messages().list(**params).execute()
+                messages = result.get("messages", [])
+                all_ids.extend([m["id"] for m in messages])
+                page_token = result.get("nextPageToken")
+                if not page_token:
+                    break
+            except Exception as e:
+                return jsonify({"error": f"Failed to list messages: {str(e)}"}), 500
 
-        # Step 2: Fetch sender headers in batches, retrying any failures
+        # Step 2: Fetch sender headers in batches, fail on any permanent error
         for i in range(0, len(all_ids), 100):
             chunk = all_ids[i : i + 100]
             time.sleep(0.5)
-            execute_batch_with_retry(service, chunk, sender_data)
+            execute_batch_with_retry(service, chunk, sender_data, max_retries=5)
 
         sorted_senders = sorted(
             [
