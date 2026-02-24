@@ -186,10 +186,10 @@ def api_scan():
             sender_data[key]["name"] = name or email
             sender_data[key]["email"] = email
 
-        for i in range(0, len(all_ids), 100):
-            time.sleep(0.5)
+        for i in range(0, len(all_ids), 50):
+            time.sleep(1)
             batch = service.new_batch_http_request(callback=process_batch)
-            for msg_id in all_ids[i:i+100]:
+            for msg_id in all_ids[i:i+50]:
                 batch.add(service.users().messages().get(
                     userId="me",
                     id=msg_id,
