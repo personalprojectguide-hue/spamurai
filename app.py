@@ -158,7 +158,7 @@ def api_scan():
         all_ids = []
         page_token = None
         while True:
-            params = {"userId": "me", "maxResults": 500, "q": "in:anywhere"}
+            params = {"userId": "me", "maxResults": 500, "q": "in:inbox OR in:promotions OR in:updates OR in:social"}
             if page_token:
                 params["pageToken"] = page_token
             result = service.users().messages().list(**params).execute()
@@ -231,7 +231,7 @@ def api_delete():
     while True:
         result = service.users().messages().list(
             userId="me",
-            q=f"from:{email} in:anywhere",
+            q=f"from:{email} (in:inbox OR in:promotions OR in:updates OR in:social)",
             maxResults=500,
         ).execute()
         messages = result.get("messages", [])
@@ -261,7 +261,7 @@ def api_nuke():
     for email in emails:
         result = service.users().messages().list(
             userId="me",
-            q=f"from:{email}",
+            q=f"from:{email} (in:inbox OR in:promotions OR in:updates OR in:social)",
             maxResults=500,
         ).execute()
         messages = result.get("messages", [])
@@ -290,7 +290,7 @@ def api_unsubscribe():
 
     result = service.users().messages().list(
         userId="me",
-        q=f"from:{email}",
+        q=f"from:{email} (in:inbox OR in:promotions OR in:updates OR in:social)",
         maxResults=500,
     ).execute()
 
