@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from collections import defaultdict
 from flask import Flask, redirect, url_for, session, request, jsonify, render_template, abort
 from google.oauth2.credentials import Credentials
@@ -14,10 +15,9 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-
 CLIENT_SECRETS_FILE = "credentials.json"
 USERS_FILE = "users.json"
-ADMIN_EMAIL = "personalprojectguide@gmail.com"  # ← change this to your email
+ADMIN_EMAIL = "personalprojectguide@gmail.com"
 
 SCOPES = [
     "https://mail.google.com/",
@@ -26,8 +26,6 @@ SCOPES = [
     "https://www.googleapis.com/auth/userinfo.profile",
 ]
 
-
-# ─── User tracking (simple JSON file) ────────────────────────────────────────
 
 def load_users():
     if not os.path.exists(USERS_FILE):
@@ -49,8 +47,6 @@ def save_user(user):
     with open(USERS_FILE, "w") as f:
         json.dump(users, f, indent=2)
 
-
-# ─── Auth helpers ─────────────────────────────────────────────────────────────
 
 def get_flow():
     return Flow.from_client_secrets_file(
@@ -91,8 +87,6 @@ def gmail_service():
     return build("gmail", "v1", credentials=creds)
 
 
-# ─── Routes ───────────────────────────────────────────────────────────────────
-
 @app.route("/")
 def index():
     user = session.get("user")
@@ -115,10 +109,8 @@ def login():
 def oauth_callback():
     flow = get_flow()
     flow.fetch_token(authorization_response=request.url)
-
     creds = flow.credentials
     session["credentials"] = credentials_to_dict(creds)
-
     service = build("oauth2", "v2", credentials=creds)
     user_info = service.userinfo().get().execute()
     user = {
@@ -128,7 +120,6 @@ def oauth_callback():
     }
     session["user"] = user
     save_user(user)
-
     return redirect(url_for("dashboard"))
 
 
@@ -146,8 +137,6 @@ def dashboard():
     return render_template("dashboard.html", user=user)
 
 
-# ─── Admin panel ──────────────────────────────────────────────────────────────
-
 @app.route("/admin")
 def admin():
     user = session.get("user")
@@ -156,8 +145,6 @@ def admin():
     users = load_users()
     return render_template("admin.html", users=users, total_users=len(users))
 
-
-# ─── API: Scan inbox ──────────────────────────────────────────────────────────
 
 @app.route("/api/scan")
 def api_scan():
@@ -168,7 +155,6 @@ def api_scan():
 
         sender_data = defaultdict(lambda: {"count": 0, "name": "", "email": ""})
 
-        # Step 1: Get all message IDs
         all_ids = []
         page_token = None
         while True:
@@ -182,7 +168,6 @@ def api_scan():
             if not page_token:
                 break
 
-        # Step 2: Batch fetch headers — 100 at a time
         def process_batch(request_id, response, exception):
             if exception:
                 return
@@ -201,17 +186,17 @@ def api_scan():
             sender_data[key]["name"] = name or email
             sender_data[key]["email"] = email
 
-	for i in range(0, len(all_ids), 100):
-    	time.sleep(0.5)
-    	batch = service.new_batch_http_request(callback=process_batch)
-    	for msg_id in all_ids[i:i+100]:
-        	batch.add(service.users().messages().get(
-            	userId="me",
-            	id=msg_id,
-            	format="metadata",
-            	metadataHeaders=["From"],
-        	))
-    	batch.execute()
+        for i in range(0, len(all_ids), 100):
+            time.sleep(0.5)
+            batch = service.new_batch_http_request(callback=process_batch)
+            for msg_id in all_ids[i:i+100]:
+                batch.add(service.users().messages().get(
+                    userId="me",
+                    id=msg_id,
+                    format="metadata",
+                    metadataHeaders=["From"],
+                ))
+            batch.execute()
 
         sorted_senders = sorted(
             [{"name": v["name"], "email": k, "count": v["count"]} for k, v in sender_data.items()],
@@ -230,8 +215,6 @@ def api_scan():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# ─── API: Delete all emails from a sender ─────────────────────────────────────
 
 @app.route("/api/delete", methods=["POST"])
 def api_delete():
@@ -255,15 +238,14 @@ def api_delete():
         return jsonify({"deleted": 0})
 
     ids = [m["id"] for m in messages]
+    time.sleep(0.5)
+    service.users().messages().batchDelete(
+        userId="me",
+        body={"ids": ids},
+    ).execute()
 
-	time.sleep(0.5)
-	service.users().messages().batchDelete(
-    		userId="me",
-    		body={"ids": ids},
-	).execute()
+    return jsonify({"deleted": len(ids)})
 
-
-# ─── API: Nuke multiple senders ───────────────────────────────────────────────
 
 @app.route("/api/nuke", methods=["POST"])
 def api_nuke():
@@ -281,10 +263,10 @@ def api_nuke():
             q=f"from:{email}",
             maxResults=500,
         ).execute()
-
         messages = result.get("messages", [])
         if messages:
             ids = [m["id"] for m in messages]
+            time.sleep(0.5)
             service.users().messages().batchDelete(
                 userId="me",
                 body={"ids": ids},
@@ -293,8 +275,6 @@ def api_nuke():
 
     return jsonify({"deleted": total_deleted, "senders_nuked": len(emails)})
 
-
-# ─── API: Unsubscribe (mark as spam) ──────────────────────────────────────────
 
 @app.route("/api/unsubscribe", methods=["POST"])
 def api_unsubscribe():
@@ -328,9 +308,11 @@ def api_unsubscribe():
 
     return jsonify({"marked_spam": len(ids)})
 
+
 @app.route("/privacy")
 def privacy():
     return render_template("privacy.html")
+
 
 @app.route("/tos")
 def tos():
