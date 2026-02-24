@@ -242,11 +242,12 @@ def api_scan():
             except Exception as e:
                 return jsonify({"error": f"Failed to list messages: {str(e)}"}), 500
 
-        # Step 2: Fetch sender headers in batches, fail on any permanent error
-        for i in range(0, len(all_ids), 100):
-            chunk = all_ids[i : i + 100]
-            time.sleep(0.5)
-            execute_batch_with_retry(service, chunk, sender_data, max_retries=5)
+        # Step 2: Fetch sender headers in batches of 500
+        batch_size = 500
+        for i in range(0, len(all_ids), batch_size):
+            chunk = all_ids[i:i + batch_size]
+            time.sleep(0.2)  # small delay to avoid rate limit bursts
+            execute_batch_with_retry(service, chunk, sender_data, max_retries=3)
 
         sorted_senders = sorted(
             [
