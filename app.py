@@ -159,7 +159,9 @@ def api_scan():
 
         sender_data = {}
 
-        # Step 1: get all message IDs — exclude sent & drafts, only count received mail
+        # Step 1: Collect all message IDs
+        # No 'fields' param — it breaks nextPageToken in some cases
+        # Exclude sent + drafts so we only count mail FROM other people
         all_ids = []
         page_token = None
         while True:
@@ -167,7 +169,6 @@ def api_scan():
                 "userId": "me",
                 "maxResults": 500,
                 "q": "-in:sent -in:drafts",
-                "fields": "messages/id,nextPageToken",
             }
             if page_token:
                 params["pageToken"] = page_token
@@ -181,8 +182,8 @@ def api_scan():
         # Deduplicate
         all_ids = list(dict.fromkeys(all_ids))
 
-        # Step 2: fetch From headers in batches of 100
-        # No sleeps, no retries — both cause gunicorn worker timeouts
+        # Step 2: Fetch From headers in batches of 100
+        # Small sleep between batches to stay under Gmail's QPM quota
         for i in range(0, len(all_ids), 100):
             chunk = all_ids[i:i + 100]
 
@@ -218,10 +219,8 @@ def api_scan():
                         metadataHeaders=["From"],
                     )
                 )
-            try:
-                batch.execute()
-            except Exception:
-                pass
+            batch.execute()
+            time.sleep(1)  # 1 second between batches = ~100 req/s, safely under quota
 
         sorted_senders = sorted(
             sender_data.values(),
